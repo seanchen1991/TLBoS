@@ -31,3 +31,52 @@ impl Semaphore {
         self.condvar.notify_one();
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::Semaphore;
+    use std::thread;
+    use std::sync::Arc;
+    use std::sync::mpsc::channel;
+
+    #[test]
+    fn test_sem_acquire_release() {
+        let sem = Semaphore::new(1);
+
+        sem.acquire();
+        sem.release();
+        sem.acquire();
+    }
+
+    #[test]
+    fn test_child_waits_parent_signals() {
+        let s1 = Arc::new(Semaphore::new(0));
+        let s2 = s1.clone();
+        
+        let (tx, rx) = channel();
+         
+        let _t = thread::spawn(move || {
+            s2.acquire();
+            tx.send(()).unwrap();
+        });
+
+        s1.release();
+        let _ = rx.recv();
+    }
+    
+    #[test]
+    fn test_parent_waits_child_signals() {
+        let s1 = Arc::new(Semaphore::new(0));
+        let s2 = s1.clone();
+
+        let (tx, rx) = channel();
+
+        let _t = thread::spawn(move || {
+            s2.release();
+            let _ = rx.recv();
+        });
+
+        s1.acquire();
+        tx.send(()).unwrap();
+    }
+}
