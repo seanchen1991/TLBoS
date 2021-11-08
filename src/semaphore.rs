@@ -82,17 +82,17 @@ mod tests {
     use std::thread;
 
     #[test]
+    fn test_sem_basic() {
+        let s = Semaphore::new(1);
+        let _ = s.access();
+    }
+
+    #[test]
     fn test_sem_acquire_release() {
         let sem = Semaphore::new(1);
         sem.acquire();
         sem.release();
         sem.acquire();
-    }
-
-    #[test]
-    fn test_sem_basic() {
-        let s = Semaphore::new(1);
-        let _ = s.access();
     }
 
     #[test]
@@ -108,35 +108,59 @@ mod tests {
     }
 
     #[test]
-    fn test_child_waits_parent_signals() {
-        let s1 = Arc::new(Semaphore::new(0));
-        let s2 = s1.clone();
+    fn test_signaling_3_1() {
+        let parent = Arc::new(Semaphore::new(0));
+        let child = parent.clone();
 
         let (tx, rx) = channel();
 
         let _t = thread::spawn(move || {
-            s2.acquire();
+            child.acquire();
             tx.send(()).unwrap();
         });
 
-        s1.release();
-        let _ = rx.recv();
-    }
+        parent.release();
+        let _r = rx.recv();
 
-    #[test]
-    fn test_parent_waits_child_signals() {
-        let s1 = Arc::new(Semaphore::new(0));
-        let s2 = s1.clone();
+        let parent = Arc::new(Semaphore::new(0));
+        let child = parent.clone();
 
         let (tx, rx) = channel();
 
         let _t = thread::spawn(move || {
-            s2.release();
-            let _ = rx.recv();
+            child.release();
+            let _r = rx.recv();
         });
 
-        s1.acquire();
+        parent.acquire();
         tx.send(()).unwrap();
+    }
+
+    #[test]
+    fn test_rendezvous_3_3() {
+        let (a, b) = (Arc::new(Semaphore::new(0)), Arc::new(Semaphore::new(0)));
+        let (a1, a2) = (a.clone(), a.clone());
+        let (b1, b2) = (b.clone(), b.clone());
+
+        let _t1 = thread::spawn(move || {
+            b2.acquire();
+            println!("statement a2");
+        });
+
+        let _t2 = thread::spawn(move || {
+            a2.acquire();
+            println!("statement b2");
+        });
+
+        let _t3 = thread::spawn(move || {
+            println!("statement a1");
+            a1.release();
+        });
+
+        let _t4 = thread::spawn(move || {
+            println!("statement b1");
+            b1.release();
+        });
     }
 
     #[test]
